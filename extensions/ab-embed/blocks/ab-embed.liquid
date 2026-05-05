@@ -1,0 +1,17 @@
+{{ 'shopiffy-ab.css' | asset_url | stylesheet_tag }}
+{{ 'shopiffy-randomizer.js' | asset_url | script_tag }}
+
+
+{% comment %}
+  Shopiffy Randomizer v2 — App Embed
+{% endcomment %}
+
+<script src="{{ 'shopiffy-randomizer.js' | asset_url }}" defer></script>
+
+{% schema %}
+{
+  "name": "Shopiffy Randomizer (A/B)",
+  "target": "body",
+  "settings": []
+}
+{% endschema %}

@@ -1,0 +1,89 @@
+{%- assign enabled_variants = block.settings.enabled_variants | default: "a,b" | downcase | strip -%}
+{%- assign variants = "a,b,c,d" | split: "," -%}
+
+{%- capture style_attr -%}
+  --shopiffy-img-max-width: {{ block.settings.max_width }}px;
+  {%- unless request.design_mode -%}display:none;{%- endunless -%}
+{%- endcapture -%}
+
+<div
+  class="shopiffy-ab-block shopiffy-ab-image"
+  data-ab-block-id="{{ block.id }}"
+  data-ab-enabled="{{ enabled_variants }}"
+  style="{{ style_attr | strip | strip_newlines }}"
+>
+  {%- if request.design_mode -%}
+    <span class="shopiffy-editor-text-anchor" aria-hidden="true">&nbsp;</span>
+  {%- endif -%}
+
+  <!-- Warning placeholder (JS will show this instead of Variant A when ?ab=<x> is requested but not enabled) -->
+  <div
+    class="shopiffy-ab-warning"
+    style="display:none; padding:12px; border:1px dashed #d33; background:#fff5f5; color:#8b0000; font-size:14px; line-height:1.4; margin:12px 0;"
+  >
+    <strong>⚠ Variant <span data-ab-warn-requested></span> is not enabled</strong><br>
+    You are previewing <code>?ab=<span data-ab-warn-requested></span></code>, but this block has
+    <strong>Enabled variants</strong> = <code><span data-ab-warn-enabled></span></code>.<br><br>
+    Fix: go to the <strong>first Shopiffy AB block</strong> on this page and include
+    <strong><span data-ab-warn-requested></span></strong> (example: <code>a,b,c,d</code>).
+  </div>
+
+  {%- for v in variants -%}
+    {%- assign key = "image_" | append: v -%}
+    {%- assign img = block.settings[key] -%}
+
+    <div class="shopiffy-ab-variant" data-ab-variant="{{ v }}">
+      {%- if img != blank -%}
+        <div class="shopiffy-image-wrapper size-{{ block.settings.size }}" style="max-width: var(--shopiffy-img-max-width, 100%); margin: 0 auto;">
+          {{ img | image_url: width: 2000 | image_tag: loading: "lazy" }}
+        </div>
+      {%- elsif request.design_mode -%}
+        <div style="padding:12px;border:1px dashed #ccc;">
+          Pick an image for Variant {{ v | upcase }}
+        </div>
+      {%- endif -%}
+    </div>
+  {%- endfor -%}
+</div>
+
+{% schema %}
+{
+  "name": "Shopiffy — AB Image",
+  "target": "section",
+  "settings": [
+    {
+      "type": "text",
+      "id": "enabled_variants",
+      "label": "Enabled variants (comma separated)",
+      "default": "a,b",
+      "info": "Example: a,b or a,b,c,d"
+    },
+    {
+      "type": "select",
+      "id": "size",
+      "label": "Image width preset (optional)",
+      "default": "medium",
+      "options": [
+        { "value": "small", "label": "Small" },
+        { "value": "medium", "label": "Medium" },
+        { "value": "large", "label": "Large" },
+        { "value": "full", "label": "Full width" }
+      ]
+    },
+    {
+      "type": "range",
+      "id": "max_width",
+      "label": "Max width (px)",
+      "min": 200,
+      "max": 1600,
+      "step": 50,
+      "default": 800
+    },
+
+    { "type": "image_picker", "id": "image_a", "label": "Image for A" },
+    { "type": "image_picker", "id": "image_b", "label": "Image for B" },
+    { "type": "image_picker", "id": "image_c", "label": "Image for C" },
+    { "type": "image_picker", "id": "image_d", "label": "Image for D" }
+  ]
+}
+{% endschema %}

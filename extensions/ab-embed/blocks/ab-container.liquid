@@ -1,0 +1,38 @@
+<div class="shopiffy-ab-container" data-ab-show="{{ block.settings.show_in }}" style="display:none;">
+  <div style="padding:10px; border:1px dashed #999;">
+    {{ block.settings.title }}
+    {{ block.settings.body }}
+  </div>
+</div>
+
+{% schema %}
+{
+  "name": "Shopiffy — AB Container",
+  "target": "section",
+  "settings": [
+    {
+      "type": "radio",
+      "id": "show_in",
+      "label": "Show in variant",
+      "default": "both",
+      "options": [
+        { "value": "a", "label": "A" },
+        { "value": "b", "label": "B" },
+        { "value": "both", "label": "Both" }
+      ]
+    },
+    {
+      "type": "text",
+      "id": "title",
+      "label": "Title",
+      "default": "Container"
+    },
+    {
+      "type": "richtext",
+      "id": "body",
+      "label": "Body",
+      "default": "<p>Put your variant content here (for now).</p>"
+    }
+  ]
+}
+{% endschema %}

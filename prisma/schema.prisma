@@ -1,0 +1,41 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Session {
+  id                  String    @id
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
+  refreshToken        String?
+  refreshTokenExpires DateTime?
+}
+
+model AbAssignment {
+  id            BigInt   @id @default(autoincrement())
+  shop          String?
+  experimentKey String   @map("experiment_key")
+  visitorId     String   @map("visitor_id")
+  sessionId     String?  @map("session_id")
+  variant       String
+  pageUrl       String?  @map("page_url")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@map("ab_assignments")
+}

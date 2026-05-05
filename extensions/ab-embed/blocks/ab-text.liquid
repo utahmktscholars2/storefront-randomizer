@@ -1,0 +1,54 @@
+{%- assign enabled_variants = block.settings.enabled_variants | default: "a,b" | downcase | strip -%}
+
+<div
+  class="shopiffy-ab-block"
+  data-ab-block-id="{{ block.id }}"
+  data-ab-enabled="{{ enabled_variants }}"
+  {% unless request.design_mode %}style="display:none;"{% endunless %}
+>
+  {%- if request.design_mode -%}
+    <span class="shopiffy-editor-text-anchor" aria-hidden="true">&nbsp;</span>
+  {%- endif -%}
+
+  <!-- Hidden warning (JS will show it when ?ab=<variant> is requested but not enabled) -->
+  <div class="shopiffy-ab-warning" style="display:none; padding:12px; border:1px dashed #d33; background:#fff5f5; color:#8b0000; font-size:14px; line-height:1.4; margin:12px 0;">
+    <strong>⚠ Variant <span data-ab-warn-requested></span> is not enabled</strong><br>
+    You are previewing <code>?ab=<span data-ab-warn-requested></span></code>, but this block has
+    <strong>Enabled variants</strong> = <code><span data-ab-warn-enabled></span></code>.<br><br>
+    Fix: edit the <strong>first Shopiffy AB block</strong> on this page and include <strong><span data-ab-warn-requested></span></strong>
+    (example: <code>a,b,c,d</code>).
+  </div>
+
+  <div class="shopiffy-ab-variant" data-ab-variant="a">
+    {{ block.settings.text_a }}
+  </div>
+  <div class="shopiffy-ab-variant" data-ab-variant="b">
+    {{ block.settings.text_b }}
+  </div>
+  <div class="shopiffy-ab-variant" data-ab-variant="c">
+    {{ block.settings.text_c }}
+  </div>
+  <div class="shopiffy-ab-variant" data-ab-variant="d">
+    {{ block.settings.text_d }}
+  </div>
+</div>
+
+{% schema %}
+{
+  "name": "Shopiffy — AB Text",
+  "target": "section",
+  "settings": [
+    {
+      "type": "text",
+      "id": "enabled_variants",
+      "label": "Enabled variants (comma separated)",
+      "default": "a,b",
+      "info": "Example: a,b or a,b,c,d"
+    },
+    { "type": "richtext", "id": "text_a", "label": "Text for A", "default": "<p>Text A</p>" },
+    { "type": "richtext", "id": "text_b", "label": "Text for B", "default": "<p>Text B</p>" },
+    { "type": "richtext", "id": "text_c", "label": "Text for C", "default": "<p>Text C</p>" },
+    { "type": "richtext", "id": "text_d", "label": "Text for D", "default": "<p>Text D</p>" }
+  ]
+}
+{% endschema %}

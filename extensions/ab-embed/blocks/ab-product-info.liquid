@@ -1,0 +1,203 @@
+{%- assign enabled_variants = block.settings.enabled_variants | default: "a,b" | downcase | strip -%}
+{%- assign variants = "a,b,c,d" | split: "," -%}
+
+{%- capture root_style -%}
+  --shopiffy-gap: {{ block.settings.gap }}px;
+  --shopiffy-img-width: {{ block.settings.image_width }}%;
+  --shopiffy-max-width: {{ block.settings.max_width }}px;
+  {%- unless request.design_mode -%}display:none;{%- endunless -%}
+{%- endcapture -%}
+
+<div
+  class="shopiffy-ab-block shopiffy-ab-product-info"
+  data-ab-block-id="{{ block.id }}"
+  data-ab-enabled="{{ enabled_variants }}"
+  data-shopiffy-product-id="{{ product.id }}"
+  style="{{ root_style | strip | strip_newlines }}"
+>
+  {%- if request.design_mode -%}
+    <span class="shopiffy-editor-text-anchor" aria-hidden="true">&nbsp;</span>
+  {%- endif -%}
+
+  <div class="shopiffy-ab-warning"
+    style="display:none; padding:12px; border:1px dashed #d33; background:#fff5f5; color:#8b0000; font-size:14px; line-height:1.4; margin:12px 0;">
+    <strong>⚠ Variant <span data-ab-warn-requested></span> is not enabled</strong><br>
+    Enabled variants: <code><span data-ab-warn-enabled></span></code>
+  </div>
+
+  <style>
+    .shopiffy-ab-product-info .shopiffy-pi {
+      max-width: var(--shopiffy-max-width);
+      margin: 0 auto;
+      display: flex;
+      gap: var(--shopiffy-gap);
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .shopiffy-ab-product-info .shopiffy-pi__media { flex: 0 1 var(--shopiffy-img-width); min-width: 220px; }
+    .shopiffy-ab-product-info .shopiffy-pi__content { flex: 1 1 320px; min-width: 260px; }
+    .shopiffy-ab-product-info img { max-width: 100%; height: auto; display: block; }
+    .shopiffy-ab-product-info .shopiffy-pi__title { margin: 0 0 8px 0; font-weight: 700; line-height: 1.15; }
+    .shopiffy-ab-product-info .shopiffy-pi__price { margin: 0 0 14px 0; font-size: 1.25em; }
+    .shopiffy-ab-product-info .shopiffy-pi__btn {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid #111;
+      background: #111;
+      color: #fff;
+      cursor: pointer;
+      border-radius: 6px;
+      font-size: 1em;
+    }
+    .shopiffy-ab-product-info .shopiffy-pi__btn.secondary { background: transparent; color: #111; }
+    .shopiffy-ab-product-info .shopiffy-pi__desc { margin-top: 12px; opacity: 0.95; }
+    @media (max-width: 749px) {
+      .shopiffy-ab-product-info .shopiffy-pi__media,
+      .shopiffy-ab-product-info .shopiffy-pi__content { flex: 1 1 100%; min-width: 0; }
+    }
+  </style>
+
+  {%- for v in variants -%}
+    {%- assign img_key = "image_" | append: v -%}
+    {%- assign title_key = "title_" | append: v -%}
+    {%- assign body_key = "body_" | append: v -%}
+    {%- assign btn_key = "button_label_" | append: v -%}
+    {%- assign vid_key = "variant_id_" | append: v -%}
+
+    {%- assign img = block.settings[img_key] -%}
+    {%- assign title = block.settings[title_key] -%}
+    {%- assign body = block.settings[body_key] -%}
+    {%- assign btn = block.settings[btn_key] -%}
+    {%- assign wanted_id = block.settings[vid_key] | strip -%}
+
+    {%- assign chosen_variant = product.selected_or_first_available_variant -%}
+    {%- assign match_found = false -%}
+
+    {%- comment -%}
+      Robust variant matching:
+      - schema can't default blank, so "0" means unset
+      - compare as strings to avoid Liquid type issues
+    {%- endcomment -%}
+    {%- if wanted_id != blank and wanted_id != "0" -%}
+      {%- for pv in product.variants -%}
+        {%- assign pv_id_str = pv.id | append: "" -%}
+        {%- if pv_id_str == wanted_id -%}
+          {%- assign chosen_variant = pv -%}
+          {%- assign match_found = true -%}
+          {%- break -%}
+        {%- endif -%}
+      {%- endfor -%}
+    {%- endif -%}
+
+    <div class="shopiffy-ab-variant"
+         data-ab-variant="{{ v }}"
+         data-shopiffy-wanted-variant-id="{{ wanted_id }}"
+         data-shopiffy-chosen-variant-id="{{ chosen_variant.id }}"
+         data-shopiffy-match-found="{{ match_found }}"
+    >
+      <div class="shopiffy-pi">
+        <div class="shopiffy-pi__media">
+          {%- if img != blank -%}
+            {{ img | image_url: width: 1600 | image_tag: loading: "lazy" }}
+          {%- elsif product.featured_image != blank -%}
+            {{ product.featured_image | image_url: width: 1600 | image_tag: loading: "lazy" }}
+          {%- endif -%}
+        </div>
+
+        <div class="shopiffy-pi__content">
+          <h2 class="shopiffy-pi__title">{{ title | escape }}</h2>
+
+          <div class="shopiffy-pi__price">
+            <span>{{ chosen_variant.price | money }}</span>
+          </div>
+
+          {%- form 'product', product, novalidate: 'novalidate' -%}
+            <input type="hidden" name="id" value="{{ chosen_variant.id }}">
+            <input type="hidden" name="quantity" value="1">
+
+            <button type="submit"
+              class="shopiffy-pi__btn {% if block.settings.button_style == 'secondary' %}secondary{% endif %}">
+              {{ btn | escape }}
+            </button>
+
+            {%- if block.settings.show_dynamic_checkout -%}
+              <div style="margin-top:10px;">
+                {{ form | payment_button }}
+              </div>
+            {%- endif -%}
+          {%- endform -%}
+
+          {%- if body != blank -%}
+            <div class="shopiffy-pi__desc">{{ body }}</div>
+          {%- endif -%}
+
+          {%- if request.design_mode -%}
+            {%- if wanted_id == "0" -%}
+              <div style="margin-top:10px; padding:10px; border:1px dashed #ccc;">
+                Tip: paste Variant ID for {{ v | upcase }} to sync cart price.
+              </div>
+            {%- elsif match_found == false -%}
+              <div style="margin-top:10px; padding:10px; border:1px dashed #d33; background:#fff5f5; color:#8b0000;">
+                Variant ID {{ wanted_id }} not found in this product (product.id={{ product.id }}).
+              </div>
+            {%- endif -%}
+          {%- endif -%}
+        </div>
+      </div>
+    </div>
+  {%- endfor -%}
+</div>
+
+{% schema %}
+{
+  "name": "AB Product Info",
+  "target": "section",
+  "settings": [
+    { "type": "text", "id": "enabled_variants", "label": "Enabled variants", "default": "a,b" },
+
+    { "type": "range", "id": "max_width", "label": "Max width (px)", "min": 420, "max": 1400, "step": 20, "default": 900 },
+    { "type": "range", "id": "image_width", "label": "Image width (%)", "min": 25, "max": 60, "step": 1, "default": 45 },
+    { "type": "range", "id": "gap", "label": "Gap (px)", "min": 8, "max": 40, "step": 2, "default": 16 },
+
+    {
+      "type": "select",
+      "id": "button_style",
+      "label": "Button style",
+      "default": "primary",
+      "options": [
+        { "value": "primary", "label": "Primary" },
+        { "value": "secondary", "label": "Secondary" }
+      ]
+    },
+    { "type": "checkbox", "id": "show_dynamic_checkout", "label": "Show dynamic checkout", "default": false },
+
+    { "type": "header", "content": "Variant A" },
+    { "type": "text", "id": "variant_id_a", "label": "Variant ID A", "default": "0" },
+    { "type": "image_picker", "id": "image_a", "label": "Image A" },
+    { "type": "text", "id": "title_a", "label": "Title A", "default": "Title A" },
+    { "type": "richtext", "id": "body_a", "label": "Description A" },
+    { "type": "text", "id": "button_label_a", "label": "Button A", "default": "Add to cart" },
+
+    { "type": "header", "content": "Variant B" },
+    { "type": "text", "id": "variant_id_b", "label": "Variant ID B", "default": "0" },
+    { "type": "image_picker", "id": "image_b", "label": "Image B" },
+    { "type": "text", "id": "title_b", "label": "Title B", "default": "Title B" },
+    { "type": "richtext", "id": "body_b", "label": "Description B" },
+    { "type": "text", "id": "button_label_b", "label": "Button B", "default": "Add to cart" },
+
+    { "type": "header", "content": "Variant C" },
+    { "type": "text", "id": "variant_id_c", "label": "Variant ID C", "default": "0" },
+    { "type": "image_picker", "id": "image_c", "label": "Image C" },
+    { "type": "text", "id": "title_c", "label": "Title C", "default": "Title C" },
+    { "type": "richtext", "id": "body_c", "label": "Description C" },
+    { "type": "text", "id": "button_label_c", "label": "Button C", "default": "Add to cart" },
+
+    { "type": "header", "content": "Variant D" },
+    { "type": "text", "id": "variant_id_d", "label": "Variant ID D", "default": "0" },
+    { "type": "image_picker", "id": "image_d", "label": "Image D" },
+    { "type": "text", "id": "title_d", "label": "Title D", "default": "Title D" },
+    { "type": "richtext", "id": "body_d", "label": "Description D" },
+    { "type": "text", "id": "button_label_d", "label": "Button D", "default": "Add to cart" }
+  ]
+}
+{% endschema %}
