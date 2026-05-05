@@ -1,0 +1,2 @@
+# storefront-randomizer
+Storefront randomization
