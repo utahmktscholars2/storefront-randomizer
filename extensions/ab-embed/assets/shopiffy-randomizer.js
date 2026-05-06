@@ -1,12 +1,21 @@
-
 (function () {
+  if (window.__SHOPIFFY_AB_SCRIPT_LOADED__) {
+    console.warn("[Shopiffy] script already loaded, skipping duplicate run");
+    return;
+  }
+
+  window.__SHOPIFFY_AB_SCRIPT_LOADED__ = true;
+
   const KEY = "__shopiffy_ab_variant__";
   const VISITOR_KEY = "__shopiffy_visitor_id__";
   const SESSION_KEY = "__shopiffy_session_id__";
-  const LOGGED_KEY_PREFIX = "__shopiffy_assignment_logged__";
   const VALID = ["a", "b", "c", "d"];
-  const API_URL = "https://shopiffy-randomizer-v2-417246570730.us-central1.run.app/api/assignment";
-  const EXPERIMENT_KEY = "homepage_test";
+
+  const API_URL =
+    window.__SHOPIFFY_API_URL__ ||
+    "https://storefront-randomizer-395930598833.us-west3.run.app/api/assignment";
+
+  const EXPERIMENT_KEY = window.__SHOPIFFY_EXPERIMENT_KEY__ || "homepage_test";
 
   function normalizeList(list) {
     return (list || "")
@@ -27,12 +36,6 @@
   function safeLocalSet(key, value) {
     try {
       localStorage.setItem(key, value);
-    } catch {}
-  }
-
-  function safeLocalRemove(key) {
-    try {
-      localStorage.removeItem(key);
     } catch {}
   }
 
@@ -62,19 +65,23 @@
 
   function getOrCreateVisitorId() {
     let id = safeLocalGet(VISITOR_KEY);
+
     if (!id) {
       id = randomId("visitor");
       safeLocalSet(VISITOR_KEY, id);
     }
+
     return id;
   }
 
   function getOrCreateSessionId() {
     let id = safeSessionGet(SESSION_KEY);
+
     if (!id) {
       id = randomId("session");
       safeSessionSet(SESSION_KEY, id);
     }
+
     return id;
   }
 
@@ -94,20 +101,34 @@
   function getUrlRequestedVariant() {
     try {
       const url = new URL(window.location.href);
-      const ab = (url.searchParams.get("ab") || "").toLowerCase();
-      return VALID.includes(ab) ? ab : "";
+
+      const ab =
+        url.searchParams.get("ab") ||
+        url.searchParams.get("AB") ||
+        url.searchParams.get("Ab") ||
+        url.searchParams.get("aB") ||
+        "";
+
+      const normalized = ab.toLowerCase();
+
+      return VALID.includes(normalized) ? normalized : "";
     } catch {
       return "";
     }
   }
 
   function getCurrentVariant() {
-    const attr = (document.documentElement.getAttribute("data-ab-variant") || "").toLowerCase();
+    const attr = (
+      document.documentElement.getAttribute("data-ab-variant") || ""
+    ).toLowerCase();
+
     return VALID.includes(attr) ? attr : "";
   }
 
   function setVariant(v) {
-    const vv = VALID.includes((v || "").toLowerCase()) ? v.toLowerCase() : "a";
+    const vv = VALID.includes((v || "").toLowerCase())
+      ? v.toLowerCase()
+      : "a";
 
     document.documentElement.setAttribute("data-ab-variant", vv.toUpperCase());
 
@@ -121,31 +142,24 @@
 
   async function logAssignment(variant) {
     const vv = (variant || "").toLowerCase();
+
     if (!VALID.includes(vv)) return;
 
-    const visitorId = getOrCreateVisitorId();
-    const sessionId = getOrCreateSessionId();
-
-    const dedupeKey = [
-      LOGGED_KEY_PREFIX,
-      EXPERIMENT_KEY,
-      visitorId,
-      sessionId,
-      vv,
-      window.location.pathname
-    ].join(":");
-
-    if (safeSessionGet(dedupeKey) === "1") {
+    if (window.__SHOPIFFY_ASSIGNMENT_LOGGING__) {
+      console.warn("[Shopiffy] assignment already logging, skipping duplicate");
       return;
     }
+
+    window.__SHOPIFFY_ASSIGNMENT_LOGGING__ = true;
 
     const payload = {
       shop: window.Shopify?.shop || window.location.hostname || "",
       experimentKey: EXPERIMENT_KEY,
-      visitorId,
-      sessionId,
+      visitorId: getOrCreateVisitorId(),
+      sessionId: getOrCreateSessionId(),
       variant: vv.toUpperCase(),
-      pageUrl: window.location.href
+      pageUrl: window.location.href,
+      loggedAt: new Date().toISOString(),
     };
 
     console.log("[Shopiffy] logging assignment", payload);
@@ -154,20 +168,18 @@
       const res = await fetch(API_URL, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
-        keepalive: true
+        keepalive: true,
       });
 
       const text = await res.text();
       console.log("[Shopiffy] log response", res.status, text);
-
-      if (res.ok) {
-        safeSessionSet(dedupeKey, "1");
-      }
     } catch (err) {
       console.error("[Shopiffy] log fetch failed", err);
+    } finally {
+      window.__SHOPIFFY_ASSIGNMENT_LOGGING__ = false;
     }
   }
 
@@ -177,7 +189,10 @@
     const requestedValid = !!requested;
 
     document.querySelectorAll(".shopiffy-ab-block").forEach((block) => {
-      const enabled = normalizeList(block.getAttribute("data-ab-enabled") || "a,b");
+      const enabled = normalizeList(
+        block.getAttribute("data-ab-enabled") || "a,b",
+      );
+
       const warningEl = block.querySelector(".shopiffy-ab-warning");
 
       if (requestedValid && !enabled.includes(requested)) {
@@ -190,13 +205,17 @@
         if (warningEl) {
           warningEl.style.display = "block";
 
-          warningEl.querySelectorAll("[data-ab-warn-requested]").forEach((n) => {
-            n.textContent = requested.toUpperCase();
-          });
+          warningEl
+            .querySelectorAll("[data-ab-warn-requested]")
+            .forEach((n) => {
+              n.textContent = requested.toUpperCase();
+            });
 
-          warningEl.querySelectorAll("[data-ab-warn-enabled]").forEach((n) => {
-            n.textContent = enabled.join(",");
-          });
+          warningEl
+            .querySelectorAll("[data-ab-warn-enabled]")
+            .forEach((n) => {
+              n.textContent = enabled.join(",");
+            });
         }
 
         block.setAttribute("data-ab-applied", "1");
@@ -209,7 +228,7 @@
         warningEl.style.display = "none";
       }
 
-      const chosen = enabled.includes(current) ? current : (enabled[0] || null);
+      const chosen = enabled.includes(current) ? current : enabled[0] || null;
 
       if (!chosen) {
         block.style.display = "none";
@@ -231,17 +250,13 @@
 
   function assignVariant() {
     const enabled = getFirstBlockEnabled();
+
     if (!enabled.length) return "";
 
     const forced = getUrlRequestedVariant();
-    let stored = getStoredVariant();
-
-    if (stored && !enabled.includes(stored)) {
-      safeLocalRemove(KEY);
-      stored = "";
-    }
-
+    const stored = getStoredVariant();
     const existing = getCurrentVariant();
+
     if (existing && enabled.includes(existing)) {
       return setVariant(existing);
     }
@@ -256,12 +271,15 @@
     }
 
     const chosen = enabled[Math.floor(Math.random() * enabled.length)] || "a";
+
     storeVariant(chosen);
+
     return setVariant(chosen);
   }
 
   function initialize() {
     const chosen = assignVariant();
+
     applyAB();
 
     if (chosen) {
@@ -270,7 +288,7 @@
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initialize);
+    document.addEventListener("DOMContentLoaded", initialize, { once: true });
   } else {
     initialize();
   }
@@ -283,15 +301,4 @@
   window.__SHOPIFFY_AB__.apply = applyAB;
   window.__SHOPIFFY_AB__.log = logAssignment;
   window.__SHOPIFFY_AB__.getStoredVariant = getStoredVariant;
-  window.__SHOPIFFY_AB__ = window.__SHOPIFFY_AB__ || {};
-  window.__SHOPIFFY_AB__.apply = applyAB;
-  window.__SHOPIFFY_AB__.log = logAssignment;
-  window.__SHOPIFFY_AB__.getStoredVariant = getStoredVariant;
-
-setTimeout(() => {
-  window.__SHOPIFFY_AB__ = window.__SHOPIFFY_AB__ || {};
-  window.__SHOPIFFY_AB__.apply = applyAB;
-  window.__SHOPIFFY_AB__.log = logAssignment;
-  window.__SHOPIFFY_AB__.getStoredVariant = getStoredVariant;
-}, 0);
 })();

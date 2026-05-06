@@ -39,7 +39,9 @@ function normalizeShop(shop: unknown) {
     .replace(/\/$/, "")
     .toLowerCase();
 
-  return cleaned.endsWith(".myshopify.com") ? cleaned : null;
+  if (!cleaned.endsWith(".myshopify.com")) return null;
+
+  return cleaned;
 }
 
 export async function loader({ request }: { request: Request }) {
@@ -54,7 +56,10 @@ export async function action({ request }: { request: Request }) {
   const corsHeaders = getCorsHeaders(origin);
 
   if (request.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: corsHeaders });
+    return new Response(null, {
+      status: 204,
+      headers: corsHeaders,
+    });
   }
 
   if (!isAllowedOrigin(origin)) {
@@ -92,35 +97,23 @@ export async function action({ request }: { request: Request }) {
       );
     }
 
-    const saved = await prisma.abAssignment.upsert({
-      where: {
-        shop_experimentKey_visitorId_sessionId_pageUrl: {
-          shop: normalizedShop,
-          experimentKey,
-          visitorId,
-          sessionId: sessionId || "",
-          pageUrl: pageUrl || "",
-        },
-      },
-      update: {
-        variant,
-      },
-      create: {
+    await prisma.variantVisit.create({
+      data: {
         shop: normalizedShop,
         experimentKey,
         visitorId,
-        sessionId: sessionId || "",
+        sessionId: sessionId || null,
         variant,
-        pageUrl: pageUrl || "",
+        pageUrl: pageUrl || null,
       },
     });
 
     return Response.json(
-      { ok: true, id: saved.id },
+      { ok: true },
       { status: 200, headers: corsHeaders },
     );
   } catch (error) {
-    console.error("Assignment error:", error);
+    console.error("Visit logging error:", error);
 
     return Response.json(
       { ok: false, error: "Server error" },

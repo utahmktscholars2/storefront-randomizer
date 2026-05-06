@@ -1,8 +1,8 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
-client_id = "81d7f6b01cf3e82804335ddaaa5de2ed"
-name = "shopiffy randomizer v2"
-application_url = "https://shopiffy-randomizer-v2-rxtxcu7cka-uc.a.run.app"
+client_id = "ca607a8adfb5af01ebfa91edc69f51ef"
+name = "Storefront Randomizer"
+application_url = "https://storefront-randomizer-395930598833.us-west3.run.app"
 embedded = true
 
 [webhooks]
@@ -22,7 +22,6 @@ scopes = "write_products"
 
 [auth]
 redirect_urls = [
-  "https://shopiffy-randomizer-v2-rxtxcu7cka-uc.a.run.app/auth/callback",
-  "https://shopiffy-randomizer-v2-rxtxcu7cka-uc.a.run.app/auth/shopify/callback",
-  "https://shopiffy-randomizer-v2-rxtxcu7cka-uc.a.run.app/api/auth"
+  "https://storefront-randomizer-395930598833.us-west3.run.app/auth/callback",
+  "https://storefront-randomizer-395930598833.us-west3.run.app/auth/shopify/callback"
 ]
