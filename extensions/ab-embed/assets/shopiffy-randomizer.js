@@ -9,6 +9,7 @@
   const KEY = "__shopiffy_ab_variant__";
   const VISITOR_KEY = "__shopiffy_visitor_id__";
   const SESSION_KEY = "__shopiffy_session_id__";
+  const CLICK_SEQUENCE_KEY = "__shopiffy_click_sequence__";
   const VALID = ["a", "b", "c", "d"];
 
   const API_BASE_URL =
@@ -20,6 +21,8 @@
     API_BASE_URL + "/api/assignment";
   const VISIT_API_URL =
     window.__SHOPIFFY_VISIT_API_URL__ || API_BASE_URL + "/api/visit";
+  const CLICK_API_URL =
+    window.__SHOPIFFY_CLICK_API_URL__ || API_BASE_URL + "/api/click";
 
   const EXPERIMENT_KEY = window.__SHOPIFFY_EXPERIMENT_KEY__ || "homepage_test";
 
@@ -57,6 +60,18 @@
     try {
       sessionStorage.setItem(key, value);
     } catch {}
+  }
+
+  function truncate(value, max) {
+    return String(value || "").replace(/\s+/g, " ").trim().slice(0, max);
+  }
+
+  function cssEscape(value) {
+    if (window.CSS && typeof window.CSS.escape === "function") {
+      return window.CSS.escape(value);
+    }
+
+    return String(value || "").replace(/[^a-zA-Z0-9_-]/g, "\\$&");
   }
 
   function randomId(prefix) {
@@ -160,6 +175,15 @@
     console.log("[Shopiffy] " + label + " response", res.status, text);
   }
 
+  function nextClickSequence() {
+    const current = parseInt(safeSessionGet(CLICK_SEQUENCE_KEY) || "0", 10);
+    const next = Number.isFinite(current) ? current + 1 : 1;
+
+    safeSessionSet(CLICK_SEQUENCE_KEY, String(next));
+
+    return next;
+  }
+
   async function logAssignment(variant) {
     const vv = (variant || "").toLowerCase();
 
@@ -194,6 +218,133 @@
     } finally {
       window.__SHOPIFFY_ASSIGNMENT_LOGGING__ = false;
     }
+  }
+
+  function getTrackTarget(rawTarget) {
+    if (!(rawTarget instanceof Element)) return null;
+
+    return rawTarget.closest(
+      [
+        "[data-shopiffy-track]",
+        ".shopiffy-ab-block",
+        ".shopiffy-ab-variant",
+        "a",
+        "button",
+        "input",
+        "select",
+        "textarea",
+        "label",
+        "summary",
+        "[role='button']",
+        "[role='link']",
+        "[role='menuitem']",
+        "[role='tab']",
+        "[data-product-id]",
+        "[data-product-handle]",
+        "[data-variant-id]",
+        "[data-shopify]",
+      ].join(","),
+    );
+  }
+
+  function getElementSelector(el) {
+    if (!el || !el.tagName) return "";
+
+    const parts = [];
+    let node = el;
+
+    while (node && node.nodeType === 1 && parts.length < 5) {
+      let part = node.tagName.toLowerCase();
+
+      if (node.id) {
+        part += "#" + cssEscape(node.id);
+        parts.unshift(part);
+        break;
+      }
+
+      const trackName = node.getAttribute("data-shopiffy-track");
+      const abVariant = node.getAttribute("data-ab-variant");
+
+      if (trackName) {
+        part += "[data-shopiffy-track='" + cssEscape(trackName) + "']";
+      } else if (abVariant) {
+        part += "[data-ab-variant='" + cssEscape(abVariant) + "']";
+      } else if (node.classList.length) {
+        part +=
+          "." +
+          Array.from(node.classList)
+            .slice(0, 3)
+            .map((className) => cssEscape(className))
+            .join(".");
+      }
+
+      parts.unshift(part);
+      node = node.parentElement;
+    }
+
+    return truncate(parts.join(" > "), 500);
+  }
+
+  function getClickPayload(event, target) {
+    const variant = getCurrentVariant() || getStoredVariant() || "a";
+    const block = target.closest(".shopiffy-ab-block");
+    const abVariant = target.closest(".shopiffy-ab-variant");
+
+    return {
+      shop: window.Shopify?.shop || window.location.hostname || "",
+      experimentKey: EXPERIMENT_KEY,
+      visitorId: getOrCreateVisitorId(),
+      sessionId: getOrCreateSessionId(),
+      variant: variant.toUpperCase(),
+      pageUrl: window.location.href,
+      clickedAt: new Date().toISOString(),
+      sequence: nextClickSequence(),
+      tagName: truncate(target.tagName || "", 40),
+      elementText: truncate(
+        target.getAttribute("aria-label") ||
+          target.getAttribute("title") ||
+          target.innerText ||
+          target.value ||
+          "",
+        240,
+      ),
+      elementId: truncate(target.id || "", 120),
+      elementClasses: truncate(target.className || "", 240),
+      elementHref: truncate(target.href || target.getAttribute("href") || "", 1000),
+      elementRole: truncate(target.getAttribute("role") || "", 80),
+      elementName: truncate(
+        target.getAttribute("name") ||
+          target.getAttribute("data-shopiffy-track") ||
+          target.getAttribute("data-product-handle") ||
+          target.getAttribute("data-product-id") ||
+          target.getAttribute("data-variant-id") ||
+          "",
+        120,
+      ),
+      selector: getElementSelector(target),
+      abBlock: truncate(block?.getAttribute("data-ab-enabled") || "", 120),
+      abVariant: truncate(abVariant?.getAttribute("data-ab-variant") || "", 20),
+      x: Math.round(event.clientX || 0),
+      y: Math.round(event.clientY || 0),
+    };
+  }
+
+  function logClick(event) {
+    const target = getTrackTarget(event.target);
+
+    if (!target) return;
+
+    const sensitiveField = target.closest(
+      "input[type='password'], input[type='email'], input[type='tel'], input[type='search'], textarea",
+    );
+
+    if (sensitiveField) return;
+
+    const payload = getClickPayload(event, target);
+
+    postLog(CLICK_API_URL, payload, "click log").catch((err) => {
+      console.error("[Shopiffy] click log fetch failed", err);
+    });
   }
 
   function applyAB() {
@@ -309,6 +460,7 @@
   document.addEventListener("shopify:section:load", applyAB);
   document.addEventListener("shopify:section:select", applyAB);
   document.addEventListener("shopify:block:select", applyAB);
+  document.addEventListener("click", logClick, true);
 
   window.__SHOPIFFY_AB__ = window.__SHOPIFFY_AB__ || {};
   window.__SHOPIFFY_AB__.apply = applyAB;

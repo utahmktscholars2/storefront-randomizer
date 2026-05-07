@@ -57,4 +57,32 @@ model VariantVisit {
   @@index([createdAt])
 }
 
+model StorefrontClick {
+  id             String   @id @default(cuid())
+  shop           String
+  experimentKey  String
+  visitorId      String
+  sessionId      String?
+  variant        String
+  pageUrl        String?
+  clickedAt      DateTime @default(now())
+  sequence       Int
+  tagName        String?
+  elementText    String?
+  elementId      String?
+  elementClasses String?
+  elementHref    String?
+  elementRole    String?
+  elementName    String?
+  selector       String?
+  abBlock        String?
+  abVariant      String?
+  x              Int?
+  y              Int?
+
+  @@index([shop])
+  @@index([shop, clickedAt])
+  @@index([shop, visitorId, sessionId, sequence])
+  @@index([experimentKey])
+}
 
