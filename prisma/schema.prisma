@@ -86,3 +86,33 @@ model StorefrontClick {
   @@index([experimentKey])
 }
 
+model PageDuration {
+  id            String   @id @default(cuid())
+  pageViewId    String   @unique
+  shop          String
+  experimentKey String
+  visitorId     String
+  sessionId     String?
+  variant       String
+  pageUrl       String?
+  startedAt     DateTime
+  endedAt       DateTime
+  durationMs    Int
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([shop])
+  @@index([shop, startedAt])
+  @@index([shop, visitorId, sessionId])
+  @@index([experimentKey])
+}
+
+model ShopTrackingSettings {
+  id                String   @id @default(cuid())
+  shop              String   @unique
+  trackClicks       Boolean  @default(true)
+  trackPageDuration Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+

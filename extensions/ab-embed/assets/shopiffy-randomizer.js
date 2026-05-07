@@ -21,10 +21,24 @@
     API_BASE_URL + "/api/assignment";
   const VISIT_API_URL =
     window.__SHOPIFFY_VISIT_API_URL__ || API_BASE_URL + "/api/visit";
+  const CONFIG_API_URL =
+    window.__SHOPIFFY_CONFIG_API_URL__ || API_BASE_URL + "/api/config";
   const CLICK_API_URL =
     window.__SHOPIFFY_CLICK_API_URL__ || API_BASE_URL + "/api/click";
+  const DURATION_API_URL =
+    window.__SHOPIFFY_DURATION_API_URL__ || API_BASE_URL + "/api/duration";
 
   const EXPERIMENT_KEY = window.__SHOPIFFY_EXPERIMENT_KEY__ || "homepage_test";
+  const PAGE_VIEW_ID = randomId("pageview");
+  const PAGE_STARTED_AT = new Date();
+  const PAGE_STARTED_MS = Date.now();
+  let lastDurationSentMs = 0;
+  let durationIntervalId = null;
+  let trackingSettings = {
+    loaded: false,
+    trackClicks: false,
+    trackPageDuration: false,
+  };
 
   function normalizeList(list) {
     return (list || "")
@@ -173,6 +187,64 @@
 
     const text = await res.text();
     console.log("[Shopiffy] " + label + " response", res.status, text);
+  }
+
+  async function loadTrackingSettings() {
+    const shop = window.Shopify?.shop || window.location.hostname || "";
+    const url = new URL(CONFIG_API_URL);
+
+    url.searchParams.set("shop", shop);
+
+    try {
+      const res = await fetch(url.toString(), {
+        method: "GET",
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error || "Config request failed");
+      }
+
+      trackingSettings = {
+        loaded: true,
+        trackClicks: data.trackClicks !== false,
+        trackPageDuration: data.trackPageDuration !== false,
+      };
+
+      console.log("[Shopiffy] tracking settings", trackingSettings);
+    } catch (err) {
+      trackingSettings = {
+        loaded: true,
+        trackClicks: false,
+        trackPageDuration: false,
+      };
+
+      console.error("[Shopiffy] tracking settings fetch failed", err);
+    }
+
+    return trackingSettings;
+  }
+
+  function postBeaconOrFetch(url, payload, label) {
+    const body = JSON.stringify(payload);
+
+    if (navigator.sendBeacon) {
+      try {
+        const sent = navigator.sendBeacon(
+          url,
+          new Blob([body], { type: "application/json" }),
+        );
+
+        if (sent) {
+          console.log("[Shopiffy] " + label + " beacon queued");
+          return;
+        }
+      } catch {}
+    }
+
+    postLog(url, payload, label).catch((err) => {
+      console.error("[Shopiffy] " + label + " fetch failed", err);
+    });
   }
 
   function nextClickSequence() {
@@ -330,6 +402,8 @@
   }
 
   function logClick(event) {
+    if (!trackingSettings.loaded || !trackingSettings.trackClicks) return;
+
     const target = getTrackTarget(event.target);
 
     if (!target) return;
@@ -345,6 +419,58 @@
     postLog(CLICK_API_URL, payload, "click log").catch((err) => {
       console.error("[Shopiffy] click log fetch failed", err);
     });
+  }
+
+  function getBaseAnalyticsPayload() {
+    const variant = getCurrentVariant() || getStoredVariant() || "a";
+
+    return {
+      shop: window.Shopify?.shop || window.location.hostname || "",
+      experimentKey: EXPERIMENT_KEY,
+      visitorId: getOrCreateVisitorId(),
+      sessionId: getOrCreateSessionId(),
+      variant: variant.toUpperCase(),
+      pageUrl: window.location.href,
+    };
+  }
+
+  function logPageDuration(reason) {
+    if (!trackingSettings.loaded || !trackingSettings.trackPageDuration) return;
+
+    const durationMs = Math.max(0, Date.now() - PAGE_STARTED_MS);
+
+    if (durationMs <= lastDurationSentMs + 1000 && reason !== "unload") {
+      return;
+    }
+
+    lastDurationSentMs = durationMs;
+
+    postBeaconOrFetch(
+      DURATION_API_URL,
+      {
+        ...getBaseAnalyticsPayload(),
+        pageViewId: PAGE_VIEW_ID,
+        startedAt: PAGE_STARTED_AT.toISOString(),
+        endedAt: new Date().toISOString(),
+        durationMs,
+        reason,
+      },
+      "duration log",
+    );
+  }
+
+  function startDurationTracking() {
+    if (durationIntervalId || !trackingSettings.trackPageDuration) return;
+
+    window.setTimeout(() => {
+      logPageDuration("heartbeat");
+    }, 5000);
+
+    durationIntervalId = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        logPageDuration("heartbeat");
+      }
+    }, 15000);
   }
 
   function applyAB() {
@@ -449,6 +575,12 @@
     if (chosen) {
       logAssignment(chosen);
     }
+
+    loadTrackingSettings().then((settings) => {
+      if (settings.trackPageDuration) {
+        startDurationTracking();
+      }
+    });
   }
 
   if (document.readyState === "loading") {
@@ -461,6 +593,21 @@
   document.addEventListener("shopify:section:select", applyAB);
   document.addEventListener("shopify:block:select", applyAB);
   document.addEventListener("click", logClick, true);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      logPageDuration("hidden");
+    } else {
+      logPageDuration("visible");
+    }
+  });
+  window.addEventListener("pagehide", () => {
+    if (durationIntervalId) {
+      window.clearInterval(durationIntervalId);
+    }
+
+    logPageDuration("unload");
+  });
+  window.addEventListener("beforeunload", () => logPageDuration("unload"));
 
   window.__SHOPIFFY_AB__ = window.__SHOPIFFY_AB__ || {};
   window.__SHOPIFFY_AB__.apply = applyAB;
