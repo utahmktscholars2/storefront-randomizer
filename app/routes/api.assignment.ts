@@ -116,7 +116,7 @@ export async function action({ request }: { request: Request }) {
     });
 
     return Response.json(
-      { ok: true, id: saved.id },
+      { ok: true, id: saved.id.toString() },
       { status: 200, headers: corsHeaders },
     );
   } catch (error) {

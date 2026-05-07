@@ -11,9 +11,15 @@
   const SESSION_KEY = "__shopiffy_session_id__";
   const VALID = ["a", "b", "c", "d"];
 
-  const API_URL =
+  const API_BASE_URL =
+    window.__SHOPIFFY_API_BASE_URL__ ||
+    "https://storefront-randomizer-395930598833.us-west3.run.app";
+  const ASSIGNMENT_API_URL =
+    window.__SHOPIFFY_ASSIGNMENT_API_URL__ ||
     window.__SHOPIFFY_API_URL__ ||
-    "https://storefront-randomizer-395930598833.us-west3.run.app/api/assignment";
+    API_BASE_URL + "/api/assignment";
+  const VISIT_API_URL =
+    window.__SHOPIFFY_VISIT_API_URL__ || API_BASE_URL + "/api/visit";
 
   const EXPERIMENT_KEY = window.__SHOPIFFY_EXPERIMENT_KEY__ || "homepage_test";
 
@@ -140,6 +146,20 @@
     return vv;
   }
 
+  async function postLog(url, payload, label) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+      keepalive: true,
+    });
+
+    const text = await res.text();
+    console.log("[Shopiffy] " + label + " response", res.status, text);
+  }
+
   async function logAssignment(variant) {
     const vv = (variant || "").toLowerCase();
 
@@ -165,17 +185,10 @@
     console.log("[Shopiffy] logging assignment", payload);
 
     try {
-      const res = await fetch(API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-        keepalive: true,
-      });
-
-      const text = await res.text();
-      console.log("[Shopiffy] log response", res.status, text);
+      await Promise.allSettled([
+        postLog(ASSIGNMENT_API_URL, payload, "assignment log"),
+        postLog(VISIT_API_URL, payload, "visit log"),
+      ]);
     } catch (err) {
       console.error("[Shopiffy] log fetch failed", err);
     } finally {
