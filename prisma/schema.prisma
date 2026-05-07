@@ -37,7 +37,24 @@ model AbAssignment {
   pageUrl       String?  @map("page_url")
   createdAt     DateTime @default(now()) @map("created_at")
 
+  @@unique([shop, experimentKey, visitorId, sessionId, pageUrl])
   @@map("ab_assignments")
+}
+
+model VariantVisit {
+  id            String   @id @default(cuid())
+  shop          String
+  experimentKey String
+  visitorId     String
+  sessionId     String?
+  variant       String
+  pageUrl       String?
+  createdAt     DateTime @default(now())
+
+  @@index([shop])
+  @@index([experimentKey])
+  @@index([visitorId])
+  @@index([createdAt])
 }
 
 

@@ -6,7 +6,7 @@ application_url = "https://storefront-randomizer-395930598833.us-west3.run.app"
 embedded = true
 
 [webhooks]
-api_version = "2026-07"
+api_version = "2026-04"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes

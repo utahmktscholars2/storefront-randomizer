@@ -18,7 +18,7 @@ function isAllowedOrigin(origin: string | null) {
 
 function getCorsHeaders(origin: string | null) {
   const allowOrigin = isAllowedOrigin(origin)
-    ? origin
+    ? origin ?? "https://admin.shopify.com"
     : "https://admin.shopify.com";
 
   return {
